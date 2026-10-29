@@ -1,0 +1,211 @@
+
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#080d18">
+<title>NFC GATE PRO</title>
+<style>
+:root{color-scheme:dark;--blue:#38bdf8;--bg:#080d18;--panel:#111c2e}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(circle at top,#142d4c,var(--bg) 55%);
+font-family:system-ui,sans-serif;color:#eff6ff;min-height:100vh}
+header{padding:25px 20px;border-bottom:1px solid #263b58}
+.brand{font-size:24px;font-weight:900;color:var(--blue)}
+.sub{color:#93a9c6;font-size:13px;margin-top:5px}
+main{width:min(760px,100%);margin:auto;padding:20px}
+.card{background:#111c2eeb;border:1px solid #263d5c;border-radius:20px;
+padding:20px;margin-bottom:16px}
+h2{font-size:17px;margin:0 0 14px}
+label{display:block;color:#a9bed9;font-size:13px;margin:12px 0 7px}
+input{width:100%;padding:13px;background:#081222;border:1px solid #314967;
+border-radius:11px;color:white;font-size:16px}
+button{border:0;border-radius:11px;padding:13px 15px;font-size:15px;
+font-weight:700;cursor:pointer}
+.primary{background:var(--blue);color:#061321}
+.secondary{background:#233650;color:white}
+button:disabled{opacity:.45;cursor:not-allowed}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.status{padding:15px;border-radius:12px;background:#091424;
+border:1px solid #263b56;overflow-wrap:anywhere}
+.dot{color:#fbbf24}
+small,.muted{color:#91a6c2;line-height:1.7}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.stat{padding:15px;background:#091424;border-radius:12px}
+.stat strong{display:block;font-size:19px;margin-top:5px}
+.hidden{display:none!important}
+footer{text-align:center;padding:20px;color:#7187a5;font-size:12px}
+@media(max-width:420px){.actions,.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">◈ NFC GATE PRO</div>
+  <div class="sub">PERSONAL ACCESS CONTROL · WEB NFC</div>
+</header>
+
+<main>
+<section class="card">
+  <h2>01 / เข้าสู่ระบบ</h2>
+  <label for="webpass">รหัสผ่านผู้ดูแล</label>
+  <input id="webpass" type="password" autocomplete="current-password"
+    placeholder="กรอกรหัสผ่าน">
+  <button class="primary" style="width:100%;margin-top:12px" id="login">
+    เข้าสู่ระบบ
+  </button>
+  <p class="muted">ระบบต้นแบบสำหรับใช้งานในเครื่องนี้</p>
+</section>
+
+<div id="dashboard" class="hidden">
+<section class="card">
+  <h2>02 / แดชบอร์ด</h2>
+  <div class="grid">
+    <div class="stat"><small>สถานะระบบ</small><strong id="sys">พร้อมใช้งาน</strong></div>
+    <div class="stat"><small>ผลการตรวจสอบ</small><strong id="result">ยังไม่มี</strong></div>
+  </div>
+  <div class="actions">
+    <button class="primary" id="scan">◉ เริ่มอ่าน NFC</button>
+    <button class="secondary" id="stop">หยุดอ่าน</button>
+  </div>
+  <div class="status" id="status" style="margin-top:14px">
+    รอการดำเนินการ
+  </div>
+</section>
+
+<section class="card">
+  <h2>03 / ตั้งค่าการตรวจสอบ</h2>
+  <label for="tagcode">ข้อความที่ต้องตรงกับ NFC</label>
+  <input id="tagcode" type="password" placeholder="กำหนดรหัส NFC">
+  <label for="newpass">เปลี่ยนรหัสผ่านเว็บ</label>
+  <input id="newpass" type="password" placeholder="รหัสผ่านใหม่">
+  <div class="actions">
+    <button class="primary" id="save">บันทึกการตั้งค่า</button>
+    <button class="secondary" id="logout">ออกจากระบบ</button>
+  </div>
+  <p class="muted">การตั้งค่าถูกเก็บในหน่วยความจำของหน้าเว็บ
+    และจะหายเมื่อรีโหลดหรือปิดหน้า</p>
+</section>
+
+<section class="card">
+  <h2>04 / ประวัติการตรวจสอบ</h2>
+  <div id="history" class="muted">ยังไม่มีประวัติ</div>
+  <button class="secondary" id="clear" style="margin-top:12px">
+    ล้างประวัติบนหน้าจอ
+  </button>
+</section>
+</div>
+</main>
+
+<footer>NFC GATE PRO · PERSONAL DEMO · NOT FOR REAL DOOR LOCKS</footer>
+
+<script>
+(() => {
+  // เปลี่ยนค่าตัวอย่างก่อนใช้งาน
+  let adminPassword = "ChangeMe-8264";
+  let nfcSecret = "MY-NFC-8264";
+  let loggedIn = false;
+  let reader = null;
+  let history = [];
+
+  const $ = id => document.getElementById(id);
+  const say = text => $("status").textContent = text;
+
+  function record(text, ok) {
+    $("result").textContent = ok ? "อนุญาต" : "ปฏิเสธ";
+    history.unshift({
+      time: new Date().toLocaleTimeString("th-TH"),
+      text, ok
+    });
+    history = history.slice(0, 10);
+    $("history").replaceChildren();
+
+    history.forEach(item => {
+      const row = document.createElement("div");
+      row.style.padding = "9px 0";
+      row.style.borderBottom = "1px solid #263b56";
+      row.textContent = `${item.time} · ${item.ok ? "ผ่าน" : "ไม่ผ่าน"} · ${item.text}`;
+      $("history").appendChild(row);
+    });
+  }
+
+  $("login").onclick = () => {
+    if ($("webpass").value === adminPassword) {
+      loggedIn = true;
+      $("dashboard").classList.remove("hidden");
+      $("webpass").value = "";
+      say("เข้าสู่ระบบสำเร็จ");
+      $("sys").textContent = "ออนไลน์";
+    } else {
+      alert("รหัสผ่านไม่ถูกต้อง");
+    }
+  };
+
+  $("save").onclick = () => {
+    if (!loggedIn) return;
+    if ($("tagcode").value.trim()) {
+      nfcSecret = $("tagcode").value.trim();
+    }
+    if ($("newpass").value.length >= 10) {
+      adminPassword = $("newpass").value;
+    } else if ($("newpass").value) {
+      alert("รหัสผ่านใหม่ต้องยาวอย่างน้อย 10 ตัวอักษร");
+      return;
+    }
+    $("tagcode").value = "";
+    $("newpass").value = "";
+    say("บันทึกการตั้งค่าในหน่วยความจำแล้ว");
+  };
+
+  $("scan").onclick = async () => {
+    if (!loggedIn) return;
+    if (!("NDEFReader" in window)) {
+      say("เบราว์เซอร์นี้ไม่รองรับ Web NFC หรือไม่ได้เปิดผ่าน HTTPS/localhost");
+      return;
+    }
+    try {
+      reader = new NDEFReader();
+      await reader.scan();
+      $("sys").textContent = "กำลังอ่าน NFC";
+      say("พร้อมอ่าน — นำแท็ก NFC มาแตะด้านหลังมือถือ");
+
+      reader.onreading = event => {
+        let found = [];
+        for (const r of event.message.records) {
+          if (r.recordType === "text") {
+            found.push(new TextDecoder(r.encoding || "utf-8").decode(r.data));
+          }
+        }
+        const match = found.some(t => t === nfcSecret);
+        record(match ? "รหัสตรงกัน" : "ข้อมูลไม่ตรง", match);
+        say(match ? "ยืนยันสำเร็จ — อนุญาตเข้าใช้งาน" :
+          "ปฏิเสธ — ข้อมูล NFC ไม่ตรงกับค่าที่ตั้งไว้");
+        $("sys").textContent = "พร้อมใช้งาน";
+      };
+
+      reader.onreadingerror = () => say("อ่านข้อมูลแท็กไม่สำเร็จ");
+    } catch (e) {
+      say("เริ่มอ่าน NFC ไม่ได้: " + e.message);
+    }
+  };
+
+  $("stop").onclick = () => {
+    reader = null;
+    $("sys").textContent = "หยุดอ่าน";
+    say("หยุดรออ่าน NFC แล้ว");
+  };
+
+  $("logout").onclick = () => {
+    loggedIn = false;
+    $("dashboard").classList.add("hidden");
+    $("sys").textContent = "ออกจากระบบ";
+  };
+
+  $("clear").onclick = () => {
+    history = [];
+    $("history").textContent = "ยังไม่มีประวัติ";
+  };
+})();
+</script>
+</body>
+</html>
